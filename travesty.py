@@ -64,7 +64,7 @@ slices = SliceDict()
 #################################################################################
 def scrub(s:str) -> str:
     """
-    If there is no input or we are not scrubbing, bail out.
+    If there is no input, bail out.
     """
     if not s: return s
 
@@ -98,7 +98,6 @@ def selector(s:str) -> str:
     by looking at the contents of slices
     """
     global slices
-    found = False
 
     if s in slices: 
         return slices.getterminal(s) 
