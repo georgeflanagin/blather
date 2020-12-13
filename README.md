@@ -1,5 +1,6 @@
 # travesty
-A very simple, one source-file Python travesty generator.
+A very simple, one source-file Python travesty generator, with no
+external dependencies. 
 
 ### About
 This is a one file, simple, travesty generator. It takes a text file and 
@@ -25,7 +26,8 @@ suffix `.new` tacked on the end.
 
 ### Testing
 
-Feed it some input and see what happens.
+Feed it some input and see what happens. It is only designed to work with 
+text, and makes no attempt to verify that the input file _is_ text. 
 
 ### Performance
 
