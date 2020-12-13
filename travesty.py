@@ -19,6 +19,7 @@ import os
 import random
 import re
 import sys
+import time
 
 # Check the version. 
 this_version = sys.version_info
@@ -132,6 +133,7 @@ def travesty(filename:str, depth:int, size:int) -> str:
     filename -- a file to read.
     depth -- how long to make the slices.
     """
+    then = time.time()
     global slices
 
     with open(filename) as f:
@@ -161,6 +163,7 @@ def travesty(filename:str, depth:int, size:int) -> str:
         with open(f"{filename}.new", "w") as outfile:
             outfile.write(result[2:])
 
+    print(f"{time.time()-then} seconds.")
     return os.EX_OK
     
 
