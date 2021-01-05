@@ -19,6 +19,7 @@ import os
 import random
 import re
 import sys
+import textwrap
 import time
 
 # Check the version. 
@@ -28,6 +29,7 @@ if this_version < (3, 8, 0):
     sys.exit(os.EX_SOFTWARE)
 
 
+beginning_of_sentence = re.compile(r'^[.?!] [A-Z].*')
 #################################################################################
 # Data structure.
 #################################################################################
@@ -62,6 +64,28 @@ slices = SliceDict()
 #################################################################################
 # Functions, in alpha order.
 #################################################################################
+def format_output(s:str, filename:str) -> None:
+    """
+    Format the text in s, and write it into filename.
+
+    returns -- true if it worked.
+    """
+    print("formatting text")
+    w = textwrap.TextWrapper(
+        width=70, expand_tabs=True, tabsize=4
+        )
+    lines = s.split('\n')
+    f = open(f"{filename}.new", 'w')
+    for line in lines:
+        wrapped_lines = w.wrap(line)
+        for wrapped_line in wrapped_lines:
+            f.write(wrapped_line + '\n')
+        f.write('\n') 
+
+    return
+        
+
+
 def scrub(s:str) -> str:
     """
     If there is no input, bail out.
@@ -118,13 +142,17 @@ def slicer(s:str, slice_size:int) -> None:
 
 
 def starting_point() -> str:
-    beginning_of_sentence = re.compile(r'^[.?!] [A-Z].*')
+    """
+    Find a starting point that seems logical, such as the 
+    beginning of a sentence. 
+    """
+    global beginning_of_sentence
     return random.choice(
         [k for k in slices.keys() if re.fullmatch(beginning_of_sentence, k) is not None]
         )
 
 
-def travesty(filename:str, depth:int, size:int) -> str:
+def travesty(filename:str, depth:int, size:int, fmt:bool) -> str:
     """
     Construct a simple travesty from the input with a
     slice-size of depth characters.
@@ -147,7 +175,7 @@ def travesty(filename:str, depth:int, size:int) -> str:
     # Pick a starting point that appears to be the first part
     # of a sentence.
     result = starting_point()
-    print(f"Document ddwill start with {result[2:]}")
+    print(f"Document will start with {result[2:]}")
 
     try:
         for i in range(size):
@@ -158,9 +186,13 @@ def travesty(filename:str, depth:int, size:int) -> str:
         print("\n\nStopping via control-c")
         
     finally:
-        print(f"Writing travesty to {filename}.new")
-        with open(f"{filename}.new", "w") as outfile:
-            outfile.write(result[2:])
+        result = result[2:]
+        if fmt:
+            format_output(result, filename)
+        else:
+            print(f"Writing travesty to {filename}.new")
+            with open(f"{filename}.new", "w") as outfile:
+                outfile.write(result)
 
     print(f"{time.time()-then} seconds.")
     return os.EX_OK
@@ -172,6 +204,8 @@ def travesty_main() -> int:
 
         --depth
         -d : How long the slices are to be. Defaults to 10.
+
+        --fmt : will format the output to about 70 columns per line.
 
         --input {inputfile}
         -f {inputfile} : The source file for the travesty.
@@ -186,13 +220,14 @@ def travesty_main() -> int:
     # Step 1: figure out the rules for this execution.
     parser = argparse.ArgumentParser(usage=travesty_main.__doc__)
 
+    parser.add_argument('--fmt', action='store_true')
     parser.add_argument('-f', '--input', type=str, required=True)
     parser.add_argument('-d', '--depth', type=int, default=10)
     parser.add_argument('-Z', '--size', type=int, default=100)
 
     args = parser.parse_args()
 
-    return travesty(args.input, args.depth, args.size)
+    return travesty(args.input, args.depth, args.size, args.fmt)
 
 
 if __name__ == "__main__":
