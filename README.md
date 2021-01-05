@@ -1,5 +1,5 @@
 # travesty
-A very simple, one source-file Python travesty generator, with no
+A very simple, one file, pure-Python travesty generator, with no
 external dependencies. 
 
 ### About
@@ -8,6 +8,12 @@ generates a travesty that has the same statistical properties as the
 input: same vocabulary, same average sentence length. Whatever you want
 to measure about the input will be the same in the output. 
 Outside of entertainment, the only purpose might be testing.
+
+Note that this program is unaware of grammar, parts of speech, sentence
+patterns, nor any of the other attributes of textual analysis that make 
+for higher quality travesties. It is a good example of the 80/20 rule, in
+that it usually produces coherent output, and the improvements that can be
+made would swell the code size by more than one order of magnitude.
 
 ### Execution
 ```bash
