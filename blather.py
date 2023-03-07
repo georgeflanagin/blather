@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-A trivial, stochastic, statistical travesty generator. The resulting
+A trivial, stochastic, statistical blather generator. The resulting
 scramble of the input will have the same statistical properties of
 the original, and might even make better sense.
 """
@@ -118,7 +118,7 @@ def scrub(s:str) -> str:
 
 def selector(s:str) -> str:
     """
-    Return the next travesty character that can follow s
+    Return the next blather character that can follow s
     by looking at the contents of slices
     """
     global slices
@@ -152,9 +152,9 @@ def starting_point() -> str:
         )
 
 
-def travesty(filename:str, depth:int, size:int, fmt:bool) -> str:
+def blather(filename:str, depth:int, size:int, fmt:bool) -> str:
     """
-    Construct a simple travesty from the input with a
+    Construct a simple blather from the input with a
     slice-size of depth characters.
 
     filename -- a file to read.
@@ -190,7 +190,7 @@ def travesty(filename:str, depth:int, size:int, fmt:bool) -> str:
         if fmt:
             format_output(result, filename)
         else:
-            print(f"Writing travesty to {filename}.new")
+            print(f"Writing blather to {filename}.new")
             with open(f"{filename}.new", "w") as outfile:
                 outfile.write(result)
 
@@ -198,9 +198,9 @@ def travesty(filename:str, depth:int, size:int, fmt:bool) -> str:
     return os.EX_OK
     
 
-def travesty_main() -> int:
+def blather_main() -> int:
     """
-    travesty [ -options ] 
+    blather [ -options ] 
 
         --depth
         -d : How long the slices are to be. Defaults to 10.
@@ -208,17 +208,17 @@ def travesty_main() -> int:
         --fmt : will format the output to about 70 columns per line.
 
         --input {inputfile}
-        -f {inputfile} : The source file for the travesty.
+        -f {inputfile} : The source file for the blather.
 
         --size {percentage}
-        -Z : The percent size of the travesty compared with the
+        -Z : The percent size of the blather compared with the
              original. Default is 100. 
 
     The result will be a file whose name is {inputfile}.new
     """
 
     # Step 1: figure out the rules for this execution.
-    parser = argparse.ArgumentParser(usage=travesty_main.__doc__)
+    parser = argparse.ArgumentParser(usage=blather_main.__doc__)
 
     parser.add_argument('--fmt', action='store_true')
     parser.add_argument('-f', '--input', type=str, required=True)
@@ -227,12 +227,12 @@ def travesty_main() -> int:
 
     args = parser.parse_args()
 
-    return travesty(args.input, args.depth, args.size, args.fmt)
+    return blather(args.input, args.depth, args.size, args.fmt)
 
 
 if __name__ == "__main__":
     try:
-        travesty_main()
+        blather_main()
 
     except Exception as e:
         print(str(e))
