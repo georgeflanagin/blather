@@ -1,6 +1,6 @@
 # travesty
-A very simple, one file, pure-Python travesty generator, with no
-external dependencies. 
+A very simple, one file, pure-Python predictive text generator, with no
+external dependencies. As a demonstration, it is entertaining.
 
 ### About
 This is a one file, simple, travesty generator. It takes a text file and 
