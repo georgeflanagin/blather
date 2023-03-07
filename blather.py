@@ -15,6 +15,8 @@ __status__ =        'production'
 __license__ =       'MIT'
 
 import argparse
+import collections
+import contextlib
 import os
 import random
 import re
@@ -64,6 +66,21 @@ slices = SliceDict()
 #################################################################################
 # Functions, in alpha order.
 #################################################################################
+def calc_stats(s:str) -> None:
+    """
+    write info about s to stderr.
+    """
+    c_count = collections.Counter(s)
+    w_count = collections.Counter(s.split())    
+
+    with contextlib.redirect_stdout(sys.stderr):
+        print(" ")
+        print(c_count)
+        print("-"*80)
+        print(w_count.most_common(25))
+        print("="*80)
+        
+
 def format_output(s:str, filename:str) -> None:
     """
     Format the text in s, and write it into filename.
@@ -152,23 +169,25 @@ def starting_point() -> str:
         )
 
 
-def blather(filename:str, depth:int, size:int, fmt:bool) -> str:
+def blather(myargs:argparse.Namespace) -> str:
     """
     Construct a simple blather from the input with a
     slice-size of depth characters.
 
-    filename -- a file to read.
+    input -- a file to read.
     depth -- how long to make the slices.
     """
     then = time.time()
     global slices
 
-    with open(filename) as f:
+    with open(myargs.input) as f:
         s = scrub(f.read())
 
+    if myargs.stats: calc_stats(s)
+
     result = ""
-    slicer(s, depth)
-    size = int(len(s)*size/100)
+    slicer(s, myargs.depth)
+    size = int(len(s)*myargs.size/100)
 
     print(f"Document sliced into {len(slices)} slices.")
 
@@ -179,7 +198,7 @@ def blather(filename:str, depth:int, size:int, fmt:bool) -> str:
 
     try:
         for i in range(size):
-            tail = result[-depth+1:]
+            tail = result[-myargs.depth+1:]
             result += selector(tail)
 
     except KeyboardInterrupt as e:
@@ -187,14 +206,16 @@ def blather(filename:str, depth:int, size:int, fmt:bool) -> str:
         
     finally:
         result = result[2:]
-        if fmt:
-            format_output(result, filename)
+        if myargs.stats: calc_stats(result)
+        if myargs.fmt:
+            format_output(result, myargs.input)
         else:
-            print(f"Writing blather to {filename}.new")
-            with open(f"{filename}.new", "w") as outfile:
+            print(f"Writing blather to {myargs.input}.new")
+            with open(f"{myargs.input}.new", "w") as outfile:
                 outfile.write(result)
 
-    print(f"{time.time()-then} seconds.")
+    print(f"{int(1000*(time.time()-then))} milliseconds.")
+    
     return os.EX_OK
     
 
@@ -214,6 +235,9 @@ def blather_main() -> int:
         -Z : The percent size of the blather compared with the
              original. Default is 100. 
 
+        --stats : write the documents' stats to stderr.
+    
+
     The result will be a file whose name is {inputfile}.new
     """
 
@@ -221,13 +245,12 @@ def blather_main() -> int:
     parser = argparse.ArgumentParser(usage=blather_main.__doc__)
 
     parser.add_argument('--fmt', action='store_true')
-    parser.add_argument('-f', '--input', type=str, required=True)
+    parser.add_argument('-i', '--input', type=str, required=True)
     parser.add_argument('-d', '--depth', type=int, default=10)
     parser.add_argument('-Z', '--size', type=int, default=100)
+    parser.add_argument('--stats', action='store_true')
 
-    args = parser.parse_args()
-
-    return blather(args.input, args.depth, args.size, args.fmt)
+    return blather(parser.parse_args())
 
 
 if __name__ == "__main__":
