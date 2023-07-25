@@ -7,31 +7,40 @@ the original, and might even make better sense.
 
 # Credits
 __author__ =        'George Flanagin'
-__copyright__ =     'Copyright 2020 George Flanagin'
+__copyright__ =     'Copyright 2023 George Flanagin'
 __version__ =       '1.0'
 __maintainer__ =    'George Flanagin'
 __email__ =         'me@georgeflanagin.com'
 __status__ =        'production'
 __license__ =       'MIT'
 
+import typing
+from   typing import *
+
 import argparse
 import collections
 import contextlib
+import logging
 import os
 import random
 import re
+import string
 import sys
 import textwrap
 import time
 
+from urdecorators import trap
+import urlogger
+
 # Check the version. 
 this_version = sys.version_info
-if this_version < (3, 8, 0):
-    print(f"Travesty requres Python 3.8+. You have {this_version}")
+required_version = (3, 8)
+if this_version < required_version:
+    print(f"Travesty requres Python {required_version}. You have {this_version}")
     sys.exit(os.EX_SOFTWARE)
 
-
 beginning_of_sentence = re.compile(r'^[.?!] [A-Z].*')
+
 #################################################################################
 # Data structure.
 #################################################################################
@@ -39,19 +48,19 @@ class SliceDict(dict):
     """
     dict doesn't quite do it without a little touch up. 
     """
-    def addslice(self, k:str) -> None:
+    @trap
+    def addslice(self, s:str) -> None:
         """
-        All but the last char of k becomes the key,
-        and k[-1] is appended to the value.
+        All but the last word of k becomes the key,
+        and k[-1] is appended to the value. 
         """
-        subslice =k[:-1]
-        terminal =k[-1]
-        if subslice not in self:
-            self[subslice] = [terminal]
+        k, v = s[:-1], s[-1]
+        if k not in self:
+            self[k] = [v]
         else:
-            self[subslice].append(terminal)
+            self[k] = self[k] + [v] 
 
-
+    @trap
     def getterminal(self, k:str) -> str:
         """ 
         pick a random letter for the continuation.
@@ -66,6 +75,7 @@ slices = SliceDict()
 #################################################################################
 # Functions, in alpha order.
 #################################################################################
+@trap
 def calc_stats(s:str) -> None:
     """
     write info about s to stderr.
@@ -81,6 +91,7 @@ def calc_stats(s:str) -> None:
         print("="*80)
         
 
+@trap
 def format_output(s:str, filename:str) -> None:
     """
     Format the text in s, and write it into filename.
@@ -102,14 +113,15 @@ def format_output(s:str, filename:str) -> None:
     return
         
 
-
+@trap
 def scrub(s:str) -> str:
     """
     If there is no input, bail out.
     """
+    global logger
     if not s: return s
 
-    print(f"document is originally {len(s)} chars.")
+    logger.info(f"document is originally {len(s)} chars.")
 
     # Remove the common typographic anomalies. 
     subs =  ( 
@@ -118,58 +130,67 @@ def scrub(s:str) -> str:
         ,(u'\u2012', '-')
         ,(u'\u2010', '-')
         ,(u'\u2011', '-')
-        ,('[“”"]', "")
-        ,('’', "'")   
-        ,("''", "'")
-        ,('…', '')
-        ,('\r\n', '\n')
-        ,(' & ', ' and ')
+        ,('[“”"]', "") 
+        ,('’', "'") # smart single quote to ascii   
+        ,("''", "'") # double ascii single quotes to just one.
+        ,('…', '') # remove elipses.
+        ,('\r\n', '\n') # DOS EOL marker removal.
+        ,(' & ', ' and ') # Ampersand to "and"
+        ,('[ \t]+', ' ') # runs of spaces and tabs to one space char.
         )
 
+    # This is a little crude, but it only needs to be done once.
     for _ in subs:
         s = re.sub(_[0], _[1], s)
 
-    print(f"document is now {len(s)} chars after scrubbing.")
+    logger.info(f"document is now {len(s)} chars after scrubbing.")
     return s
 
 
+@trap
 def selector(s:str) -> str:
     """
-    Return the next blather character that can follow s
-    by looking at the contents of slices
+    Return the next word that can follow s
+    by looking at the contents of slices.
     """
     global slices
 
     if s in slices: 
-        return slices.getterminal(s) 
+        return slices.getterminal(s)
     else:
         new_point = starting_point()
-        padding = '. ' if s[-1] not in ".!?" else '  '
-        return f"{padding}{new_point[2:]}"
     
 
+@trap
 def slicer(s:str, slice_size:int) -> None:
     """
-    Make up slices of the input that are slice_size long.
+    Make up slices of the input that are slice_size long. This is
+    a little dense, and an example helps. Suppose slice size is
+    ten, and the 
     """
-    global slices
+    global slices, logger
 
     for offset in range(0, len(s)-slice_size):
         slices.addslice(s[offset:offset+slice_size])
 
+    logger.info(f"Slicing complete. {len(slices)=}")
 
+
+@trap
 def starting_point() -> str:
     """
     Find a starting point that seems logical, such as the 
     beginning of a sentence. 
     """
-    global beginning_of_sentence
-    return random.choice(
-        [k for k in slices.keys() if re.fullmatch(beginning_of_sentence, k) is not None]
-        )
+    global beginning_of_sentence, logger
+    ks = tuple(k for k in slices if re.fullmatch(beginning_of_sentence, k) is not None)
+    logger.info(f"{len(ks)=}")
+    start = random.choice(ks)[2:]
+    return random.choice([k for k in slices if k.startswith(start)])
+    
 
-
-def blather(myargs:argparse.Namespace) -> str:
+@trap
+def blather_main(myargs:argparse.Namespace) -> str:
     """
     Construct a simple blather from the input with a
     slice-size of depth characters.
@@ -178,7 +199,7 @@ def blather(myargs:argparse.Namespace) -> str:
     depth -- how long to make the slices.
     """
     then = time.time()
-    global slices
+    global slices, logger
 
     with open(myargs.input) as f:
         s = scrub(f.read())
@@ -194,69 +215,60 @@ def blather(myargs:argparse.Namespace) -> str:
     # Pick a starting point that appears to be the first part
     # of a sentence.
     result = starting_point()
-    print(f"Document will start with {result[2:]}")
+    logger.info(f"Document will start with {result}")
 
     try:
+        logger.info(f"Text generation begins.")
         for i in range(size):
             tail = result[-myargs.depth+1:]
-            result += selector(tail)
+            if (c := selector(tail)) is not None:
+                result += c
+            else:
+                result += ". " + starting_point()
 
     except KeyboardInterrupt as e:
         print("\n\nStopping via control-c")
         
     finally:
-        result = result[2:]
+        if result[-1] not in "?!.": result += "."
         if myargs.stats: calc_stats(result)
         if myargs.fmt:
             format_output(result, myargs.input)
         else:
-            print(f"Writing blather to {myargs.input}.new")
-            with open(f"{myargs.input}.new", "w") as outfile:
+            print(f"Writing blather to {myargs.input}.blather")
+            with open(f"{myargs.input}.blather", "w") as outfile:
                 outfile.write(result)
 
-    print(f"{int(1000*(time.time()-then))} milliseconds.")
+    logger.info(f"{int(1000*(time.time()-then))} milliseconds.")
     
     return os.EX_OK
     
 
-def blather_main() -> int:
-    """
-    blather [ -options ] 
-
-        --depth
-        -d : How long the slices are to be. Defaults to 10.
-
-        --fmt : will format the output to about 70 columns per line.
-
-        --input {inputfile}
-        -f {inputfile} : The source file for the blather.
-
-        --size {percentage}
-        -Z : The percent size of the blather compared with the
-             original. Default is 100. 
-
-        --stats : write the documents' stats to stderr.
-    
-
-    The result will be a file whose name is {inputfile}.new
-    """
-
-    # Step 1: figure out the rules for this execution.
-    parser = argparse.ArgumentParser(usage=blather_main.__doc__)
-
-    parser.add_argument('--fmt', action='store_true')
-    parser.add_argument('-i', '--input', type=str, required=True)
-    parser.add_argument('-d', '--depth', type=int, default=10)
-    parser.add_argument('-Z', '--size', type=int, default=100)
-    parser.add_argument('--stats', action='store_true')
-
-    return blather(parser.parse_args())
-
-
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog="blather", 
+        description="What blather does, blather does best.")
+
+    parser.add_argument('--fmt', action='store_true', 
+        help='Wrap/format the output to 70 columns.')
+    parser.add_argument('-i', '--input', type=str, required=True,
+        help='Name of input file.')
+    parser.add_argument('-o', '--output', type=str, default='')
+    parser.add_argument('-d', '--depth', type=int, default=10,
+        help='Length of the backtracking in the predictive text algorithm.')
+    parser.add_argument('-Z', '--size', type=int, default=100,
+        help='Size of the output as a percent of the original input')
+    parser.add_argument('--stats', action='store_true')
+    parser.add_argument('--verbose', action='store_true')
+
+    myargs = parser.parse_args()
+    verbose = myargs.verbose
+    logger=urlogger.URLogger(level=logging.DEBUG)
+
     try:
-        blather_main()
+        outfile = sys.stdout if not myargs.output else open(myargs.output, 'w')
+        with contextlib.redirect_stdout(outfile):
+            sys.exit(globals()[f"{os.path.basename(__file__)[:-3]}_main"](myargs))
 
     except Exception as e:
-        print(str(e))
+        print(f"Escaped or re-raised exception: {e}")
         sys.exit(os.EX_SOFTWARE)
