@@ -22,12 +22,15 @@ import collections
 import contextlib
 import logging
 import os
+from   pprint import pformat
 import random
 import re
 import string
 import sys
 import textwrap
 import time
+
+import nltk
 
 from urdecorators import trap
 import urlogger
@@ -41,6 +44,25 @@ if this_version < required_version:
 
 beginning_of_sentence = re.compile(r'^[.?!] [A-Z].*')
 
+###
+# this is a standard list of contractions from 
+# englishgrammarhere.com
+###
+contractions = frozenset((
+    "ain't", "aren't", "can't", "couldn't", "didn't", 
+    "don't", "doesn't", "hadn't", "haven't", "he's",
+    "he'll", "he'd", "here's", "i'm", "i've", "i'll", 
+    "i'd", "isn't", "it's", "it'll", "mustn't",
+    "she's", "she'll", "she'd", "shouldn't", "that's",
+    "there's", "they're", "they've", "they'll", "they'd",
+    "wasn't", "we're", "we've", "we'll", "we'd",
+    "weren't", "what's", "where's", "who's", "who'll",
+    "won't", "wouldn't", "you're", "you've", "you'll",
+    "you'd"
+    ))
+
+end_of_sentence = frozenset(".?!")
+
 #################################################################################
 # Data structure.
 #################################################################################
@@ -49,16 +71,13 @@ class SliceDict(dict):
     dict doesn't quite do it without a little touch up. 
     """
     @trap
-    def addslice(self, s:str) -> None:
+    def addslice(self, s:List[str]) -> None:
         """
         All but the last word of k becomes the key,
         and k[-1] is appended to the value. 
         """
-        k, v = s[:-1], s[-1]
-        if k not in self:
-            self[k] = [v]
-        else:
-            self[k] = self[k] + [v] 
+        k, v = tuple(s[:-1]), (s[-1],)
+        self[k] = v if k not in self else self[k] + v
 
     @trap
     def getterminal(self, k:str) -> str:
@@ -66,6 +85,10 @@ class SliceDict(dict):
         pick a random letter for the continuation.
         """
         return random.choice(self[k])
+
+    @trap
+    def __str__(self) -> str:
+        return pformat(self)
 
 
 # We don't need to pass this as an argument; it is the
@@ -75,22 +98,6 @@ slices = SliceDict()
 #################################################################################
 # Functions, in alpha order.
 #################################################################################
-@trap
-def calc_stats(s:str) -> None:
-    """
-    write info about s to stderr.
-    """
-    c_count = collections.Counter(s)
-    w_count = collections.Counter(s.split())    
-
-    with contextlib.redirect_stdout(sys.stderr):
-        print(" ")
-        print(c_count)
-        print("-"*80)
-        print(w_count.most_common(25))
-        print("="*80)
-        
-
 @trap
 def format_output(s:str, filename:str) -> None:
     """
@@ -112,6 +119,47 @@ def format_output(s:str, filename:str) -> None:
 
     return
         
+
+@trap
+def fuser(w:list) -> list:
+    """
+    Essentially we rejoin the contractions, and take
+    care of the pesky genetive case in English, a.k.a.,
+    apostrophe-s.
+    """
+    global contractions
+    if len(w) < 2: return w
+    
+    w = collections.deque(w)
+    w_fused = collections.deque()
+    w1 = w.popleft()
+    
+    while (len(w)):
+        w0, w1 = w1, w.popleft()
+        w_ = w0+w1
+        if ( 
+            w1=="'s" or                         # apostrophe-s
+            w_.lower() in contractions or       # standard contraction
+            ( w0.endswith('s') and w1=="'") or  # s-apostrophe
+            w0 == '$'                           # currency
+            ):
+            w_fused.append(w_)
+            w0, w1 = w1, w.popleft()
+        else:
+            w_fused.append(w0)
+
+    return w_fused
+        
+@trap
+def recombine(text:tuple) -> str:
+    """
+    This operation only affects the output formatting, and all it
+    does is to pull the punctuation to the left in keeping with
+    modern typesetting practices.
+    """
+    text = " ".join(text)
+    return re.sub(r' ([;:,.?!])', r'\1', text)
+
 
 @trap
 def scrub(s:str) -> str:
@@ -148,9 +196,9 @@ def scrub(s:str) -> str:
 
 
 @trap
-def selector(s:str) -> str:
+def selector(s:tuple) -> tuple:
     """
-    Return the next word that can follow s
+    Return the next slice that can follow s
     by looking at the contents of slices.
     """
     global slices
@@ -158,11 +206,11 @@ def selector(s:str) -> str:
     if s in slices: 
         return slices.getterminal(s)
     else:
-        new_point = starting_point()
+        return starting_point()
     
 
 @trap
-def slicer(s:str, slice_size:int) -> None:
+def slicer(text:List[str], slice_size:int) -> None:
     """
     Make up slices of the input that are slice_size long. This is
     a little dense, and an example helps. Suppose slice size is
@@ -170,30 +218,29 @@ def slicer(s:str, slice_size:int) -> None:
     """
     global slices, logger
 
-    for offset in range(0, len(s)-slice_size):
-        slices.addslice(s[offset:offset+slice_size])
+    for offset in range(0, len(text)-slice_size):
+        slices.addslice(text[offset:offset+slice_size])
 
     logger.info(f"Slicing complete. {len(slices)=}")
 
 
 @trap
-def starting_point() -> str:
+def starting_point() -> tuple:
     """
     Find a starting point that seems logical, such as the 
     beginning of a sentence. 
     """
-    global beginning_of_sentence, logger
-    ks = tuple(k for k in slices if re.fullmatch(beginning_of_sentence, k) is not None)
-    logger.info(f"{len(ks)=}")
-    start = random.choice(ks)[2:]
-    return random.choice([k for k in slices if k.startswith(start)])
+    ks = tuple(k for k in slices if k[0][0] in string.ascii_uppercase)
+    _ = random.choice(ks)
+    logger.info(f"New starting point {_}")
+    return _
     
 
 @trap
 def blather_main(myargs:argparse.Namespace) -> str:
     """
     Construct a simple blather from the input with a
-    slice-size of depth characters.
+    slice-size of depth words.
 
     input -- a file to read.
     depth -- how long to make the slices.
@@ -202,13 +249,15 @@ def blather_main(myargs:argparse.Namespace) -> str:
     global slices, logger
 
     with open(myargs.input) as f:
-        s = scrub(f.read())
+        text = f.read()
 
-    if myargs.stats: calc_stats(s)
+    logger.info('Input read.')
+    tokens = list(fuser(nltk.word_tokenize(scrub(text))))
+    logger.info(f"{len(tokens)=}")
 
     result = ""
-    slicer(s, myargs.depth)
-    size = int(len(s)*myargs.size/100)
+    slicer(tokens, myargs.depth)
+    size = int(len(slices)*myargs.size/100)
 
     print(f"Document sliced into {len(slices)} slices.")
 
@@ -220,18 +269,24 @@ def blather_main(myargs:argparse.Namespace) -> str:
     try:
         logger.info(f"Text generation begins.")
         for i in range(size):
+            if i % (size//100) == 0:
+                print('+', end='', flush=True)
             tail = result[-myargs.depth+1:]
             if (c := selector(tail)) is not None:
-                result += c
+                result += (c,)
             else:
-                result += ". " + starting_point()
+                result += ('.',) + starting_point()
+
+        print("\n")
 
     except KeyboardInterrupt as e:
         print("\n\nStopping via control-c")
         
     finally:
-        if result[-1] not in "?!.": result += "."
-        if myargs.stats: calc_stats(result)
+        logger.info('Finally.')
+        if result[-1][0] not in end_of_sentence: 
+            result += ('.',)
+        result = recombine(result)
         if myargs.fmt:
             format_output(result, myargs.input)
         else:
@@ -239,14 +294,14 @@ def blather_main(myargs:argparse.Namespace) -> str:
             with open(f"{myargs.input}.blather", "w") as outfile:
                 outfile.write(result)
 
-    logger.info(f"{int(1000*(time.time()-then))} milliseconds.")
+    logger.info(f"{time.time()-then} seconds.")
     
     return os.EX_OK
     
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="blather", 
-        description="What blather does, blather does best.")
+    parser = argparse.ArgumentParser(prog="bLaTheR", 
+        description="What bLaTheR does, bLaTheR does best. Namely, bLaTheR.")
 
     parser.add_argument('--fmt', action='store_true', 
         help='Wrap/format the output to 70 columns.')
@@ -254,11 +309,11 @@ if __name__ == "__main__":
         help='Name of input file.')
     parser.add_argument('-o', '--output', type=str, default='')
     parser.add_argument('-d', '--depth', type=int, default=10,
-        help='Length of the backtracking in the predictive text algorithm.')
+        help='Depth of the backtracking in the predictive text algorithm.')
     parser.add_argument('-Z', '--size', type=int, default=100,
         help='Size of the output as a percent of the original input')
-    parser.add_argument('--stats', action='store_true')
-    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--verbose', type=int, default=logging.DEBUG,
+        help=f"Set the logging level. Defaults to {logging.DEBUG}")
 
     myargs = parser.parse_args()
     verbose = myargs.verbose
@@ -272,3 +327,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Escaped or re-raised exception: {e}")
         sys.exit(os.EX_SOFTWARE)
+else:
+    logger=urlogger.URLogger(level=logging.DEBUG)
