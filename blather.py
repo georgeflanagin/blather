@@ -32,7 +32,7 @@ import time
 
 import nltk
 
-from urdecorators import trap
+from   urdecorators import trap
 import urlogger
 
 # Check the version. 

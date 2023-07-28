@@ -1,5 +1,5 @@
-# travesty
-A very simple, one file, pure-Python predictive text generator, with no
+# bLaTheR
+A very simple, one file, pure-Python predictive text generator, with few
 external dependencies. As a demonstration, it is entertaining.
 
 ### About
