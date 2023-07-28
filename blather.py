@@ -149,17 +149,45 @@ def fuser(w:list) -> list:
             w_fused.append(w0)
 
     return w_fused
-        
+     
+
 @trap
-def recombine(text:tuple) -> str:
+def nth_find(text:str, 
+    target:str, 
+    start_at:int,
+    n:int):
+    """
+    Find the nth occurence of target in text.
+    """
+    return text.find(target, start_at) if n == 1 else text.find(target, nth_find(text, target, n-1)+1)
+
+   
+@trap
+def recombine(text:tuple, n:int) -> str:
     """
     This operation only affects the output formatting, and all it
     does is to pull the punctuation to the left in keeping with
     modern typesetting practices.
     """
     text = " ".join(text)
-    return re.sub(r' ([;:,.?!])', r'\1', text)
+    text = re.sub(r' ([;:,.?!])', r'\1', text)
+    if not n: return text
 
+    n = n if n>0 else -n
+    index = 0
+    new_text = ""
+    breaks = set()
+    while index < len(text):
+        if (pos_nth := nth_find(text, ". ", index, int(round(random.gauss(n)))) == -1): break
+        breaks.add(pos_nth)
+        index+=pos_nth
+
+    text = [text]
+    for i in breaks:
+        text[i+1] = '\n'
+
+    return "".join(text)
+        
 
 @trap
 def scrub(s:str) -> str:
@@ -269,6 +297,8 @@ def blather_main(myargs:argparse.Namespace) -> str:
     try:
         logger.info(f"Text generation begins.")
         for i in range(size):
+
+            # print a progress bar to keep the user happy.
             if i % (size//100) == 0:
                 print('+', end='', flush=True)
             tail = result[-myargs.depth+1:]
@@ -286,7 +316,7 @@ def blather_main(myargs:argparse.Namespace) -> str:
         logger.info('Finally.')
         if result[-1][0] not in end_of_sentence: 
             result += ('.',)
-        result = recombine(result)
+        result = recombine(result, myargs.n)
         if myargs.fmt:
             format_output(result, myargs.input)
         else:
@@ -303,13 +333,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="bLaTheR", 
         description="What bLaTheR does, bLaTheR does best. Namely, bLaTheR.")
 
+    parser.add_argument('-d', '--depth', type=int, default=10,
+        help='Depth of the backtracking in the predictive text algorithm.')
     parser.add_argument('--fmt', action='store_true', 
         help='Wrap/format the output to 70 columns.')
     parser.add_argument('-i', '--input', type=str, required=True,
         help='Name of input file.')
     parser.add_argument('-o', '--output', type=str, default='')
-    parser.add_argument('-d', '--depth', type=int, default=10,
-        help='Depth of the backtracking in the predictive text algorithm.')
+    parser.add_argument('-n', type=int, default=0, 
+        help="If present, break every n sentences into a paragraph (average)")
     parser.add_argument('-Z', '--size', type=int, default=100,
         help='Size of the output as a percent of the original input')
     parser.add_argument('--verbose', type=int, default=logging.DEBUG,
