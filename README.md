@@ -1,13 +1,14 @@
 # bLaTheR
 A very simple, one file, pure-Python predictive text generator, with few
-external dependencies. As a demonstration, it is entertaining.
+external dependencies. This is not a serious tool; only an entertaining
+diversion.
 
 ### About
-This is a one file, simple, travesty generator. It takes a text file and 
+
+bLaTheR is a simple travesty generator. It takes a text file (or files) and 
 generates a travesty that has the same statistical properties as the
 input: same vocabulary, same average sentence length. Whatever you want
 to measure about the input will be the same in the output. 
-Outside of entertainment, the only purpose might be testing.
 
 Note that this program is unaware of grammar, parts of speech, sentence
 patterns, nor any of the other attributes of textual analysis that make 
@@ -17,30 +18,22 @@ made would swell the code size by more than one order of magnitude.
 
 ### Execution
 ```bash
-python travesty.py [--size {percentage}] [--depth {int}] --input {filename}
+python blather.py [--size {percentage}] [--depth {int}] --input {filename}
 ```
 
-The `--size` parameter defaults to `100`, meaning the travesty will be the
-same size as the original. 
+The `--size` parameter defaults to `10`, meaning the travesty will be 10%
+the size of the original. 
 
-The `--depth` sets the chunk size for analysis/synthesis. For most texts,
-something around `11` gives realistic results, `8` gets humorous, and `13+`
-begins to resemble the original a little too faithfully.
+The `--depth` sets the number of words that it backtracks. When using short
+texts as input, a `depth` of four or five is the max for interesting
+results that do not simply reproduce large sections of the input. For input
+texts in the 500,000 word range, a `depth` of 8 or 9 is good.
 
-The output will be a file with the same name as the input file, but with the
-suffix `.new` tacked on the end.
+`--input` can be a wildcard filespec. If you are using `*.txt` as the input
+you must remember to put the the filespec in single quotes to avoid `bash`
+globbing it before the value is read by the program.
 
-### Testing
+### Logging
 
-Feed it some input and see what happens. It is only designed to work with 
-text, and makes no attempt to verify that the input file _is_ text. 
-
-### Performance
-
-It is a single threaded program, so the performance is entirely the domain 
-of your processor's clock speed. It does not do any math, and it only does
-I/O at the beginning and end to read the input and write the output. 
-
-For the 1.2 million bytes of the copy of _Moby Dick_ at Project Gutenberg,
-the total execution time was 3.29 seconds.
-
+bLaTheR uses Python's logging module, and creates a file named `blather.log` 
+in `$PWD`.
