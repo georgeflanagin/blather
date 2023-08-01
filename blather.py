@@ -32,6 +32,7 @@ import time
 
 import nltk
 
+import fileutils
 from   urdecorators import trap
 import urlogger
 
@@ -150,6 +151,23 @@ def fuser(w:list) -> list:
 
     return w_fused
      
+
+@trap
+def gather_input(filespec:str) -> str:
+    """
+    Handle multiple input files.
+    """
+    global logger
+
+    s = ""
+    for f in fileutils.all_files_like(filespec):
+        logger.info(f"Processing {f}")
+        with open(f) as input_f:
+            s += input_f.read()
+
+    logger.info(f"Gathered {len(s)} bytes of input.")
+    return s
+    
 
 @trap
 def nth_find(text:str, 
@@ -276,8 +294,7 @@ def blather_main(myargs:argparse.Namespace) -> str:
     then = time.time()
     global slices, logger
 
-    with open(myargs.input) as f:
-        text = f.read()
+    text = gather_input(myargs.input)
 
     logger.info('Input read.')
     tokens = list(fuser(nltk.word_tokenize(scrub(text))))
@@ -330,6 +347,10 @@ def blather_main(myargs:argparse.Namespace) -> str:
     
 
 if __name__ == "__main__":
+    thisfile=os.path.basename(__file__)[:-3]
+    logfile=f"{thisfile}.log"
+    entry_point=f"{thisfile}_main"
+
     parser = argparse.ArgumentParser(prog="bLaTheR", 
         description="What bLaTheR does, bLaTheR does best. Namely, bLaTheR.")
 
@@ -338,7 +359,7 @@ if __name__ == "__main__":
     parser.add_argument('--fmt', action='store_true', 
         help='Wrap/format the output to 70 columns.')
     parser.add_argument('-i', '--input', type=str, required=True,
-        help='Name of input file.')
+        help='Name of input file. Accepts wildcard file names.')
     parser.add_argument('-o', '--output', type=str, default='')
     parser.add_argument('-n', type=int, default=0, 
         help="If present, break every n sentences into a paragraph (average)")
@@ -349,12 +370,12 @@ if __name__ == "__main__":
 
     myargs = parser.parse_args()
     verbose = myargs.verbose
-    logger=urlogger.URLogger(level=logging.DEBUG)
+    logger=urlogger.URLogger(logfile=logfile, level=myargs.verbose)
 
     try:
         outfile = sys.stdout if not myargs.output else open(myargs.output, 'w')
         with contextlib.redirect_stdout(outfile):
-            sys.exit(globals()[f"{os.path.basename(__file__)[:-3]}_main"](myargs))
+            sys.exit(globals()[entry_point](myargs))
 
     except Exception as e:
         print(f"Escaped or re-raised exception: {e}")
