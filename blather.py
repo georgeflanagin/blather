@@ -20,6 +20,7 @@ from   typing import *
 import argparse
 import collections
 import contextlib
+import fcntl
 import logging
 import os
 from   pprint import pformat
@@ -35,6 +36,7 @@ import nltk
 import fileutils
 from   urdecorators import trap
 import urlogger
+from   urlogger import piddly
 
 # Check the version. 
 this_version = sys.version_info
@@ -99,6 +101,47 @@ slices = SliceDict()
 #################################################################################
 # Functions, in alpha order.
 #################################################################################
+@trap
+def append_output(s:str, file_name:str) -> int:
+    """
+    Append s to file_name.
+    """
+    with open(file_name, 'a+') as f:
+        fcntl.lockf(f, fcntl.LOCK_EX)
+        i = f.write(s+'\n')
+        f.close()
+
+    return i
+
+
+@trap
+def blather(size:int, outfile:str) -> None:
+    try:
+
+        # Pick a starting point that appears to be the first part
+        # of a sentence.
+        result = starting_point()
+
+        logger.info(f"Text generation begins.")
+        for i in range(size):
+
+            tail = result[-myargs.depth+1:]
+            if (c := selector(tail)) is not None:
+                result += (c,)
+            else:
+                result += ('.',) + starting_point()
+
+        if result[-1][0] not in end_of_sentence: 
+            result += ('.',)
+        append_output(recombine(result, myargs.n), outfile)
+
+    except Exception as e:
+        logger.info(piddly(f"{e=}"))
+
+    finally:
+        os._exit(os.EX_OK)
+
+
 @trap
 def format_output(s:str, filename:str) -> None:
     """
@@ -295,6 +338,18 @@ def blather_main(myargs:argparse.Namespace) -> str:
     global slices, logger
 
     text = gather_input(myargs.input)
+    numbers = set((0,))
+    if not myargs.blather:
+        for blather_file in ( _ for _ in fileutils.all_files_like('*.blather')):
+            _, fname = os.path.split(blather_file)
+            fname, _ = os.path.splitext(fname)
+            try:
+                numbers.add(int(fname))
+            except:
+                pass
+
+        myargs.blather = f"{max(numbers)+1}.blather"
+
 
     logger.info('Input read.')
     tokens = list(fuser(nltk.word_tokenize(scrub(text))))
@@ -306,40 +361,23 @@ def blather_main(myargs:argparse.Namespace) -> str:
 
     print(f"Document sliced into {len(slices)} slices.")
 
-    # Pick a starting point that appears to be the first part
-    # of a sentence.
-    result = starting_point()
-    logger.info(f"Document will start with {result}")
 
-    try:
-        logger.info(f"Text generation begins.")
-        for i in range(size):
+    pids = set()
+    size_per_core = size//myargs.cores
+    for i in range(myargs.cores):
 
-            # print a progress bar to keep the user happy.
-            if i % (size//100) == 0:
-                print('+', end='', flush=True)
-            tail = result[-myargs.depth+1:]
-            if (c := selector(tail)) is not None:
-                result += (c,)
-            else:
-                result += ('.',) + starting_point()
+        if (pid := os.fork()):
+            pids.add(pid)
+            continue
 
-        print("\n")
+        logger.info(piddly("blathering."))
+        blather(size_per_core, myargs.blather)
 
-    except KeyboardInterrupt as e:
-        print("\n\nStopping via control-c")
-        
-    finally:
-        logger.info('Finally.')
-        if result[-1][0] not in end_of_sentence: 
-            result += ('.',)
-        result = recombine(result, myargs.n)
-        if myargs.fmt:
-            format_output(result, myargs.input)
-        else:
-            print(f"Writing blather to {myargs.input}.blather")
-            with open(f"{myargs.input}.blather", "w") as outfile:
-                outfile.write(result)
+    while pids:
+        pid, exit_code, _ = os.wait3(0)
+        logger.info(f"SIGCHLD {pid=} {exit_code=}")
+        pids.remove(pid)
+
 
     logger.info(f"{time.time()-then} seconds.")
     
@@ -347,13 +385,20 @@ def blather_main(myargs:argparse.Namespace) -> str:
     
 
 if __name__ == "__main__":
-    thisfile=os.path.basename(__file__)[:-3]
-    logfile=f"{thisfile}.log"
-    entry_point=f"{thisfile}_main"
+
+    thisfile=os.path.basename(__file__)[:-3]  # blather
+    logfile=f"{thisfile}.log"                 # blather.log
+    entry_point=f"{thisfile}_main"            # blather_main
+    maxcores=len(os.sched_getaffinity(0))-2   # leave two cores in case it runs away...
 
     parser = argparse.ArgumentParser(prog="bLaTheR", 
         description="What bLaTheR does, bLaTheR does best. Namely, bLaTheR.")
 
+    parser.add_argument('-b', '--blather', type=str, default="",
+        help="Name of the output blather file.")
+    parser.add_argument('-c', '--cores', type=int, default=1,
+        choices=range(1,maxcores-1),
+        help=f'Number of cores to use. Max on this computer is {maxcores}') 
     parser.add_argument('-d', '--depth', type=int, default=10,
         help='Depth of the backtracking in the predictive text algorithm.')
     parser.add_argument('--fmt', action='store_true', 
@@ -363,7 +408,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', type=str, default='')
     parser.add_argument('-n', type=int, default=0, 
         help="If present, break every n sentences into a paragraph (average)")
-    parser.add_argument('-Z', '--size', type=int, default=100,
+    parser.add_argument('-Z', '--size', type=int, default=10,
         help='Size of the output as a percent of the original input')
     parser.add_argument('--verbose', type=int, default=logging.DEBUG,
         help=f"Set the logging level. Defaults to {logging.DEBUG}")
