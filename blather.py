@@ -21,6 +21,7 @@ import argparse
 import collections
 import contextlib
 import fcntl
+import importlib
 import logging
 import os
 from   pprint import pformat
@@ -30,6 +31,17 @@ import string
 import sys
 import textwrap
 import time
+
+failures=False
+for _ in ('nltk', 'fileutils', 'urdecorators', 'urlogger'):
+    try:
+        __ = __import__(_)
+    except ModuleNotFoundError:
+        failures=True
+        print(f"Cannot find {_} to import it.")
+    finally:
+        if failures: sys.exit(os.EX_SOFTWARE)
+        
 
 import nltk
 
@@ -42,10 +54,11 @@ from   urlogger import piddly
 this_version = sys.version_info
 required_version = (3, 8)
 if this_version < required_version:
-    print(f"Travesty requres Python {required_version}. You have {this_version}")
+    print(f"bLaTheR requres Python {required_version}. You have {this_version}")
     sys.exit(os.EX_SOFTWARE)
 
 beginning_of_sentence = re.compile(r'^[.?!] [A-Z].*')
+NL='\n'
 
 ###
 # this is a standard list of contractions from 
@@ -94,8 +107,12 @@ class SliceDict(dict):
         return pformat(self)
 
 
+###
 # We don't need to pass this as an argument; it is the
-# only data structure in the program.
+# only data structure in the program, and it will need
+# to be accessed by child processes if the user chooses
+# to multiprocess it.
+###
 slices = SliceDict()
 
 #################################################################################
@@ -108,7 +125,7 @@ def append_output(s:str, file_name:str) -> int:
     """
     with open(file_name, 'a+') as f:
         fcntl.lockf(f, fcntl.LOCK_EX)
-        i = f.write(s+'\n')
+        i = f.write(s)
         f.close()
 
     return i
@@ -133,7 +150,7 @@ def blather(size:int, outfile:str) -> None:
 
         if result[-1][0] not in end_of_sentence: 
             result += ('.',)
-        append_output(recombine(result, myargs.n), outfile)
+        append_output(recombine(result, myargs.n)+NL, outfile)
 
     except Exception as e:
         logger.info(piddly(f"{e=}"))
@@ -153,13 +170,13 @@ def format_output(s:str, filename:str) -> None:
     w = textwrap.TextWrapper(
         width=70, expand_tabs=True, tabsize=4
         )
-    lines = s.split('\n')
+    lines = s.split(NL)
     f = open(f"{filename}.new", 'w')
     for line in lines:
         wrapped_lines = w.wrap(line)
         for wrapped_line in wrapped_lines:
-            f.write(wrapped_line + '\n')
-        f.write('\n') 
+            f.write(wrapped_line + NL)
+        f.write(NL) 
 
     return
         
@@ -227,11 +244,12 @@ def nth_find(text:str,
 def recombine(text:tuple, n:int) -> str:
     """
     This operation only affects the output formatting, and all it
-    does is to pull the punctuation to the left in keeping with
+    does is to pull the punctuation to the left or right in keeping with
     modern typesetting practices.
     """
     text = " ".join(text)
-    text = re.sub(r' ([;:,.?!])', r'\1', text)
+    text = re.sub(r' ([%;:,.?!])', r'\1', text)
+    text = re.sub(r'$ ', r'$', text)
     if not n: return text
 
     n = n if n>0 else -n
@@ -245,7 +263,7 @@ def recombine(text:tuple, n:int) -> str:
 
     text = [text]
     for i in breaks:
-        text[i+1] = '\n'
+        text[i+1] = NL
 
     return "".join(text)
         
@@ -271,7 +289,7 @@ def scrub(s:str) -> str:
         ,('’', "'") # smart single quote to ascii   
         ,("''", "'") # double ascii single quotes to just one.
         ,('…', '') # remove elipses.
-        ,('\r\n', '\n') # DOS EOL marker removal.
+        ,('\r\n', NL) # DOS EOL marker removal.
         ,(' & ', ' and ') # Ampersand to "and"
         ,('[ \t]+', ' ') # runs of spaces and tabs to one space char.
         )
@@ -361,7 +379,11 @@ def blather_main(myargs:argparse.Namespace) -> str:
 
     print(f"Document sliced into {len(slices)} slices.")
 
-
+    ###
+    # As a point of generality, even if the user requests only 
+    # one core, we still fork and do the blathering in the 
+    # child process.
+    ###
     pids = set()
     size_per_core = size//myargs.cores
     for i in range(myargs.cores):
