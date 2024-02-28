@@ -1,4 +1,4 @@
-# travesty
+# bLaTheR
 A very simple, one file, pure-Python predictive text generator, with no
 external dependencies. As a demonstration, it is entertaining.
 
