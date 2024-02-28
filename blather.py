@@ -308,16 +308,16 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--input', type=str, required=True,
         help='Name of input file.')
     parser.add_argument('-o', '--output', type=str, default='')
-    parser.add_argument('-d', '--depth', type=int, default=10,
+    parser.add_argument('-d', '--depth', type=int, default=5,
         help='Depth of the backtracking in the predictive text algorithm.')
-    parser.add_argument('-Z', '--size', type=int, default=100,
+    parser.add_argument('-Z', '--size', type=int, default=10,
         help='Size of the output as a percent of the original input')
     parser.add_argument('--verbose', type=int, default=logging.DEBUG,
         help=f"Set the logging level. Defaults to {logging.DEBUG}")
 
     myargs = parser.parse_args()
     verbose = myargs.verbose
-    logger=urlogger.URLogger(level=logging.DEBUG)
+    logger=urlogger.URLogger(level=logging.ERROR)
 
     try:
         outfile = sys.stdout if not myargs.output else open(myargs.output, 'w')
