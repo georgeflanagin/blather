@@ -20,15 +20,15 @@ made would swell the code size by more than one order of magnitude.
 python travesty.py [--size {percentage}] [--depth {int}] --input {filename}
 ```
 
-The `--size` parameter defaults to `100`, meaning the travesty will be the
-same size as the original. 
+The `--size` parameter defaults to `10`, meaning the travesty will be 10%
+the size of the original. 
 
 The `--depth` sets the chunk size for analysis/synthesis. For most texts,
-something around `11` gives realistic results, `8` gets humorous, and `13+`
+something around `5` gives realistic results, and `7+`
 begins to resemble the original a little too faithfully.
 
 The output will be a file with the same name as the input file, but with the
-suffix `.new` tacked on the end.
+suffix `.blather` tacked on the end.
 
 ### Testing
 
