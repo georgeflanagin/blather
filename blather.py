@@ -159,6 +159,7 @@ def recombine(text:tuple) -> str:
     """
     text = " ".join(text)
     return re.sub(r' ([;:,.?!])', r'\1', text)
+    
 
 
 @trap
