@@ -30,7 +30,12 @@ import sys
 import textwrap
 import time
 
-import nltk
+try:
+    import nltk
+except:
+    print(f"This program requires NLTK. Are you surprised?")
+    sys.exit(os.EX_CONFIG)
+
 
 from urdecorators import trap
 import urlogger
