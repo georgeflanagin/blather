@@ -8,7 +8,7 @@ the original, and might even make better sense.
 # Credits
 __author__ =        'George Flanagin'
 __copyright__ =     'Copyright 2023 George Flanagin'
-__version__ =       '1.0'
+__version__ =       '1.1'
 __maintainer__ =    'George Flanagin'
 __email__ =         'me@georgeflanagin.com'
 __status__ =        'production'
@@ -39,7 +39,7 @@ import urlogger
 this_version = sys.version_info
 required_version = (3, 8)
 if this_version < required_version:
-    print(f"Travesty requres Python {required_version}. You have {this_version}")
+    print(f"bLaTheR requres Python {required_version}. You have {this_version}")
     sys.exit(os.EX_SOFTWARE)
 
 beginning_of_sentence = re.compile(r'^[.?!] [A-Z].*')
